@@ -69,7 +69,7 @@ export const assetService = {
   },
 
   async getGlobalHistory(page: number = 1, limit: number = 10): Promise<PaginatedResponse<StockHistory>> {
-    const response = await api.get('/assets/history/logs', {
+    const response = await api.get('/assets/history', {
       params: { page, limit },
     });
     return response.data;
