@@ -16,6 +16,26 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, theme, toggleTheme
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const handleQuickLogin = async (userVal: string, passVal: string) => {
+    setUsername(userVal);
+    setPassword(passVal);
+    setError(null);
+    setLoading(true);
+
+    try {
+      const data = await authService.login(userVal, passVal);
+      toast.success(data.message || 'Login successful!');
+      onLoginSuccess(data.user);
+    } catch (err: any) {
+      console.error(err);
+      const errMsg = err.response?.data?.message || 'Invalid username or password. Please check your credentials.';
+      setError(errMsg);
+      toast.error(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
@@ -164,6 +184,33 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, theme, toggleTheme
             )}
           </button>
         </form>
+
+        {/* Quick Access Demo Buttons */}
+        <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800/60 flex flex-col space-y-3">
+          <p className="text-center text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
+            Demo & Test Access
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              id="login-quick-demo-btn"
+              type="button"
+              onClick={() => handleQuickLogin('demo', 'demo')}
+              disabled={loading}
+              className="py-2.5 px-3 text-xs bg-slate-50 hover:bg-slate-100 dark:bg-slate-950/40 dark:hover:bg-slate-800/40 text-purple-600 dark:text-purple-400 font-semibold rounded-xl border border-slate-200/80 dark:border-slate-800 transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-sm active:scale-95"
+            >
+              <span>Demo Account</span>
+            </button>
+            <button
+              id="login-quick-admin-btn"
+              type="button"
+              onClick={() => handleQuickLogin('admin', 'admin')}
+              disabled={loading}
+              className="py-2.5 px-3 text-xs bg-slate-50 hover:bg-slate-100 dark:bg-slate-950/40 dark:hover:bg-slate-800/40 text-indigo-600 dark:text-indigo-400 font-semibold rounded-xl border border-slate-200/80 dark:border-slate-800 transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-sm active:scale-95"
+            >
+              <span>Admin Account</span>
+            </button>
+          </div>
+        </div>
 
         <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800/60 text-center">
           <p id="login-footer-text" className="text-xs text-slate-400 dark:text-slate-500 font-light">
