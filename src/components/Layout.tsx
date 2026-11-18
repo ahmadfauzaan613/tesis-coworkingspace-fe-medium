@@ -1,23 +1,11 @@
-import React, { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 import { authService } from '../services/authService';
-import { User as UserType } from '../types';
-import { 
-  LayoutDashboard, 
-  Package, 
-  Layers, 
-  Send, 
-  Wrench, 
-  LogOut, 
-  Menu, 
-  X, 
-  Database,
-  ShieldCheck,
-  Sun,
-  Moon
-} from 'lucide-react';
+import type { User as UserType } from '../types';
+import { ArrowLeftRight, LayoutDashboard, LogOut, Menu, Moon, Package, Sun, Tags, Wrench, X } from 'lucide-react';
+import { btnIcon } from '../lib/ui';
 
 interface LayoutProps {
   user: UserType;
@@ -27,41 +15,153 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
-export const Layout: React.FC<LayoutProps> = ({
+const menuItems = [
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Ringkasan' },
+  { id: 'assets', icon: Package, label: 'Aset' },
+  { id: 'categories', icon: Tags, label: 'Kategori' },
+  { id: 'assignments', icon: ArrowLeftRight, label: 'Peminjaman' },
+  { id: 'maintenance', icon: Wrench, label: 'Perawatan' },
+];
+
+function Wordmark() {
+  return (
+    <span className="flex items-baseline gap-2">
+      <span className="text-lg font-extrabold tracking-tight">
+        Space<span className="text-primary">Hub</span>
+      </span>
+      <span className="text-sm font-semibold text-muted-foreground">Inventaris</span>
+    </span>
+  );
+}
+
+function NavItems({ mobile, onNavigate }: { mobile: boolean; onNavigate?: () => void }) {
+  return (
+    <ul className="space-y-1">
+      {menuItems.map((item) => (
+        <li key={item.id}>
+          <NavLink
+            to={`/${item.id}`}
+            id={mobile ? `mobile-nav-${item.id}` : `sidebar-nav-${item.id}`}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              `flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors ${
+                isActive ? 'bg-primary-soft text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`
+            }
+          >
+            <item.icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+            {item.label}
+          </NavLink>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SessionPanel({
+  mobile,
   user,
-  onLogout,
   theme,
   toggleTheme,
-  children
-}) => {
+  dbConnected,
+  dbKnown,
+  onSignOut,
+}: {
+  mobile: boolean;
+  user: UserType;
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+  dbConnected: boolean;
+  dbKnown: boolean;
+  onSignOut: () => void;
+}) {
+  const dbLabel = !dbKnown ? 'Memeriksa...' : dbConnected ? 'Terhubung' : 'Terputus';
+  return (
+    <div className="space-y-1 border-t border-border pt-3">
+      <div id={mobile ? 'mobile-db-status' : 'db-connectivity-status'} className="flex min-h-11 items-center justify-between px-2 text-sm">
+        <span className="text-muted-foreground">Database</span>
+        <span
+          id={mobile ? undefined : 'db-connectivity-state-text'}
+          role="status"
+          className={`inline-flex items-center gap-2 font-semibold ${
+            !dbKnown ? 'text-muted-foreground' : dbConnected ? 'text-success' : 'text-destructive'
+          }`}
+        >
+          {/* Titik ini menandai status koneksi yang nyata (dicek tiap 10 detik), bukan hiasan. */}
+          <span aria-hidden="true" className="size-2 rounded-full bg-current" />
+          {dbLabel}
+        </span>
+      </div>
+
+      {!mobile && (
+        <button
+          type="button"
+          id="sidebar-theme-toggle-btn"
+          onClick={toggleTheme}
+          className="flex min-h-11 w-full items-center justify-between rounded-lg px-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <span>{theme === 'dark' ? 'Pakai tema terang' : 'Pakai tema gelap'}</span>
+          {theme === 'dark' ? <Sun className="size-4" aria-hidden="true" /> : <Moon className="size-4" aria-hidden="true" />}
+        </button>
+      )}
+
+      <div id={mobile ? 'mobile-profile-card' : 'sidebar-profile-card'} className="flex items-center justify-between gap-2 px-2 pt-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            id={mobile ? undefined : 'sidebar-user-avatar'}
+            aria-hidden="true"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-xs font-bold uppercase text-primary"
+          >
+            {user.username.slice(0, 2)}
+          </span>
+          <div className="min-w-0">
+            <p id={mobile ? undefined : 'sidebar-user-username'} className="truncate text-sm font-semibold">
+              {user.username}
+            </p>
+            <p id={mobile ? undefined : 'sidebar-user-role'} className="truncate text-xs capitalize text-muted-foreground">
+              {user.role}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          id={mobile ? 'mobile-logout-btn' : 'sidebar-logout-btn'}
+          onClick={onSignOut}
+          aria-label="Keluar dari akun"
+          title="Keluar"
+          className={btnIcon}
+        >
+          <LogOut className="size-5" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export const Layout: React.FC<LayoutProps> = ({ user, onLogout, theme, toggleTheme, children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Poll backend status check (online database check)
-  const { data: systemStatus } = useQuery({
+  const { data: systemStatus, isError } = useQuery({
     queryKey: ['systemStatus'],
-    queryFn: async () => {
-      const res = await api.get('/status');
-      return res.data;
-    },
-    refetchInterval: 10000 // poll status check every 10s
+    queryFn: async () => (await api.get('/status')).data,
+    refetchInterval: 10000,
   });
-
   const dbConnected = systemStatus?.database === 'Connected';
+  const dbKnown = !!systemStatus || isError;
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard Stats', icon: LayoutDashboard },
-    { id: 'assets', label: 'Equipment Catalog', icon: Package },
-    { id: 'categories', label: 'Categories', icon: Layers },
-    { id: 'assignments', label: 'Checkout & Loans', icon: Send },
-    { id: 'maintenance', label: 'Maintenance Log', icon: Wrench },
-  ];
+  const current = menuItems.find((m) => location.pathname === `/${m.id}`);
+  useEffect(() => {
+    document.title = `${current?.label ?? 'Inventaris'} | SpaceHub`;
+  }, [current]);
 
-  const handleTabSelect = (tabId: string) => {
-    navigate('/' + tabId);
-    setIsMobileMenuOpen(false);
-  };
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setIsMobileMenuOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isMobileMenuOpen]);
 
   const handleSignOut = () => {
     authService.logout();
@@ -69,246 +169,75 @@ export const Layout: React.FC<LayoutProps> = ({
     navigate('/');
   };
 
+  const sessionProps = { user, theme, toggleTheme, dbConnected, dbKnown, onSignOut: handleSignOut };
+
   return (
-    <div 
-      id="admin-dashboard-container"
-      className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex selection:bg-purple-500 selection:text-white antialiased transition-colors duration-200"
-    >
-      
-      {/* ==================================================== */}
-      {/* DESKTOP SIDEBAR WRAPPER */}
-      {/* ==================================================== */}
-      <aside 
-        id="desktop-sidebar"
-        className="hidden lg:flex flex-col w-64 border-r border-slate-200 dark:border-slate-900 bg-white/80 dark:bg-slate-950/60 backdrop-blur-xl shrink-0 h-screen sticky top-0"
+    <div id="admin-dashboard-container" className="min-h-dvh lg:flex">
+      <a
+        href="#main-content-slot"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:font-semibold"
       >
-        
-        {/* Sidebar Header Logo */}
-        <div id="sidebar-logo" className="p-6 border-b border-slate-200 dark:border-slate-900 flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-tr from-purple-500 to-indigo-500 rounded-xl shadow-lg shadow-purple-500/10">
-            <ShieldCheck className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white leading-none">CoSpace Assets</h1>
-            <span className="text-[10px] text-slate-500 font-light mt-1 block">Inventory Control v1.0</span>
-          </div>
-        </div>
+        Lewati ke konten
+      </a>
 
-        {/* Sidebar Nav Items */}
-        <nav id="sidebar-nav" className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === '/' + item.id;
-            return (
-              <button
-                key={item.id}
-                id={`sidebar-nav-${item.id}`}
-                onClick={() => handleTabSelect(item.id)}
-                className={`w-full flex items-center space-x-3 py-3 px-4 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-900/40'
-                }`}
-              >
-                <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-purple-550 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+      <aside
+        id="desktop-sidebar"
+        className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border bg-muted px-3 py-5 lg:flex"
+      >
+        <div id="sidebar-logo" className="px-2 pb-6">
+          <Wordmark />
+        </div>
+        <nav id="sidebar-nav" aria-label="Menu utama" className="flex-1 overflow-y-auto">
+          <NavItems mobile={false} />
         </nav>
-
-        {/* Admin profile & DB status card */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-900 space-y-3 bg-slate-50/40 dark:bg-slate-950/40">
-          
-          {/* Theme toggler row */}
-          <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-900 px-3 py-2 rounded-xl text-[10px]">
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Dashboard Theme</span>
-            <button
-              id="sidebar-theme-toggle-btn"
-              onClick={toggleTheme}
-              className="p-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 rounded-lg border border-slate-250 dark:border-slate-800 transition cursor-pointer text-slate-800 dark:text-slate-200"
-              title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-            >
-              {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-500" />}
-            </button>
-          </div>
-
-          {/* Connection status */}
-          <div 
-            id="db-connectivity-status"
-            className="flex items-center justify-between bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-900 p-2.5 rounded-xl text-[10px]"
-          >
-            <div className="flex items-center space-x-2">
-              <Database className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-              <span className="text-slate-500 dark:text-slate-400">PostgreSQL Schema</span>
-            </div>
-            <span 
-              id="db-connectivity-state-text"
-              className={`inline-flex items-center space-x-1 font-bold ${dbConnected ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${dbConnected ? 'bg-emerald-400' : 'bg-rose-500'}`} />
-              <span>{dbConnected ? 'Online' : 'Offline'}</span>
-            </span>
-          </div>
-
-          {/* Profile badge details */}
-          <div 
-            id="sidebar-profile-card"
-            className="flex items-center justify-between bg-white dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-200 dark:border-slate-900"
-          >
-            <div className="flex items-center space-x-2.5 min-w-0">
-              <div 
-                id="sidebar-user-avatar"
-                className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-650 dark:text-purple-400 shrink-0 font-bold text-xs uppercase"
-              >
-                {user.username.slice(0, 2)}
-              </div>
-              <div className="min-w-0">
-                <p id="sidebar-user-username" className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate leading-none">{user.username}</p>
-                <span id="sidebar-user-role" className="text-[10px] text-slate-400 dark:text-slate-500 font-light truncate mt-0.5 block capitalize">{user.role}</span>
-              </div>
-            </div>
-            <button
-              id="sidebar-logout-btn"
-              onClick={handleSignOut}
-              className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-450 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition cursor-pointer"
-              title="Logout session"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-
-        </div>
-
+        <SessionPanel mobile={false} {...sessionProps} />
       </aside>
 
-      {/* ==================================================== */}
-      {/* MOBILE HEADER & DRAWER NAV */}
-      {/* ==================================================== */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        
-        {/* Mobile Header Nav */}
-        <header 
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header
           id="mobile-header"
-          className="lg:hidden h-16 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-900 px-6 flex items-center justify-between shrink-0 sticky top-0 z-30 transition-colors duration-200"
+          className="sticky top-0 z-30 border-b border-border bg-background lg:hidden"
         >
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-tr from-purple-500 to-indigo-500 rounded-xl">
-              <ShieldCheck className="w-4.5 h-4.5 text-white" />
-            </div>
-            <h1 className="font-extrabold text-sm text-slate-900 dark:text-white leading-none">CoSpace Assets</h1>
-          </div>
-          <div className="flex items-center space-x-3">
-            {/* Mobile Header Theme Toggle */}
-            <button
-              id="mobile-theme-toggle-btn"
-              onClick={toggleTheme}
-              className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-955 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-xl transition cursor-pointer"
-              title="Toggle Theme"
-            >
-              {theme === 'dark' ? <Sun className="w-4.5 h-4.5 text-amber-400" /> : <Moon className="w-4.5 h-4.5 text-indigo-550" />}
-            </button>
-            <button
-              id="mobile-menu-btn"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-955 dark:hover:text-white bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-250 dark:border-slate-800 transition"
-            >
-              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-          </div>
-        </header>
-
-        {/* Mobile slide drawer */}
-        {isMobileMenuOpen && (
-          <div 
-            id="mobile-nav-drawer"
-            className="lg:hidden fixed inset-0 z-40 bg-white dark:bg-slate-950 flex flex-col animate-fadeIn"
-          >
-            <div className="h-16 px-6 border-b border-slate-200 dark:border-slate-900 flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Navigation Menu</span>
-              <button 
-                id="mobile-nav-close-btn"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2 text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl"
+          <div className="flex h-16 items-center justify-between px-4">
+            <Wordmark />
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                id="mobile-theme-toggle-btn"
+                onClick={toggleTheme}
+                aria-label={theme === 'dark' ? 'Pakai tema terang' : 'Pakai tema gelap'}
+                className={btnIcon}
               >
-                <X className="w-5 h-5" />
+                {theme === 'dark' ? <Sun className="size-5" aria-hidden="true" /> : <Moon className="size-5" aria-hidden="true" />}
+              </button>
+              <button
+                type="button"
+                id="mobile-menu-btn"
+                onClick={() => setIsMobileMenuOpen((o) => !o)}
+                aria-label={isMobileMenuOpen ? 'Tutup menu' : 'Buka menu'}
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="mobile-nav-drawer"
+                className={btnIcon}
+              >
+                {isMobileMenuOpen ? <X className="size-5" aria-hidden="true" /> : <Menu className="size-5" aria-hidden="true" />}
               </button>
             </div>
-            
-            <nav id="mobile-nav-menu" className="flex-1 p-6 space-y-2 overflow-y-auto">
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === '/' + item.id;
-                return (
-                  <button
-                    key={item.id}
-                    id={`mobile-nav-${item.id}`}
-                    onClick={() => handleTabSelect(item.id)}
-                    className={`w-full flex items-center space-x-4 py-3.5 px-5 rounded-2xl text-sm font-semibold transition ${
-                      isActive
-                        ? 'bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800'
-                        : 'text-slate-550 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-purple-550 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="p-6 border-t border-slate-200 dark:border-slate-900 bg-slate-50 dark:bg-slate-900/20 space-y-4">
-              
-              <div 
-                id="mobile-db-status"
-                className="flex items-center justify-between text-xs bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-900"
-              >
-                <div className="flex items-center space-x-2">
-                  <Database className="w-4 h-4 text-slate-400 dark:text-slate-550" />
-                  <span className="text-slate-500 dark:text-slate-400">DB Connectivity Status</span>
-                </div>
-                <span className={`font-bold ${dbConnected ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-450'}`}>
-                  {dbConnected ? 'Online' : 'Offline'}
-                </span>
-              </div>
-
-              <div 
-                id="mobile-profile-card"
-                className="flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-650 dark:text-purple-400 font-bold">
-                    {user.username.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-bold text-xs text-slate-800 dark:text-slate-200 leading-none">{user.username}</p>
-                    <span className="text-[10px] text-slate-450 dark:text-slate-500 mt-1 block capitalize">{user.role}</span>
-                  </div>
-                </div>
-                <button
-                  id="mobile-logout-btn"
-                  onClick={handleSignOut}
-                  className="py-1.5 px-3 bg-rose-50 dark:bg-rose-955/30 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-450 hover:bg-rose-100 dark:hover:text-white rounded-xl text-xs font-semibold transition flex items-center space-x-1"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Log Out</span>
-                </button>
-              </div>
-
-            </div>
           </div>
-        )}
 
-        {/* Main Content Area */}
-        <main 
-          id="main-content-slot"
-          className="flex-1 p-6 md:p-10 max-w-7xl w-full mx-auto"
-        >
+          {isMobileMenuOpen && (
+            <div id="mobile-nav-drawer" className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-border px-3 pb-4 pt-2">
+              <nav id="mobile-nav-menu" aria-label="Menu utama" className="pb-3">
+                <NavItems mobile onNavigate={() => setIsMobileMenuOpen(false)} />
+              </nav>
+              <SessionPanel mobile {...sessionProps} />
+            </div>
+          )}
+        </header>
+
+        <main id="main-content-slot" tabIndex={-1} className="w-full flex-1 px-4 py-8 sm:px-6 md:py-10 lg:px-10">
           {children}
         </main>
-
       </div>
-
     </div>
   );
 };

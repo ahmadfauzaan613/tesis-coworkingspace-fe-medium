@@ -8,19 +8,22 @@ import { AssetsManager } from './components/AssetsManager';
 import { CategoriesManager } from './components/CategoriesManager';
 import { AssignmentsManager } from './components/AssignmentsManager';
 import { MaintenanceManager } from './components/MaintenanceManager';
-import { Loader2 } from 'lucide-react';
+import { LoadingState } from './components/kit';
 import { Toaster } from 'react-hot-toast';
+import type { User } from './types';
+
+type Theme = 'light' | 'dark';
 
 interface ProtectedRouteProps {
   isAuthenticated: boolean;
-  user: any;
+  user: User | null;
   logout: () => void;
-  theme: 'light' | 'dark';
+  theme: Theme;
   toggleTheme: () => void;
 }
 
 function ProtectedRoute({ isAuthenticated, user, logout, theme, toggleTheme }: ProtectedRouteProps) {
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return <Navigate to="/" replace />;
   }
 
@@ -31,93 +34,73 @@ function ProtectedRoute({ isAuthenticated, user, logout, theme, toggleTheme }: P
   );
 }
 
-function App() {
-  const { user, isAuthenticated, logout, isLoadingProfile, refetchProfile } = useAuth();
-  
-  // Initialize theme from localStorage or system preference
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+function readTheme(): Theme {
+  try {
     const saved = localStorage.getItem('theme');
     if (saved === 'light' || saved === 'dark') return saved;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
+  } catch {
+    // localStorage bisa diblokir; jatuh ke preferensi sistem
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
-  // Toggle dark class on root document element
+function App() {
+  const { user, isAuthenticated, logout, isLoadingProfile, refetchProfile } = useAuth();
+  const [theme, setTheme] = useState<Theme>(readTheme);
+
   useEffect(() => {
-    const root = window.document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    try {
+      localStorage.setItem('theme', theme);
+    } catch {
+      // abaikan, tema tetap berlaku untuk sesi ini
     }
-    localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
+  const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
 
   if (isLoadingProfile) {
     return (
-      <div 
-        id="app-loader"
-        className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400"
-      >
-        <Loader2 className="w-10 h-10 animate-spin text-purple-500 mb-3" />
-        <p className="text-sm font-light">Authenticating admin portal session...</p>
-      </div>
+      <main id="app-loader" className="flex min-h-dvh items-center justify-center">
+        <LoadingState>Memeriksa sesi login...</LoadingState>
+      </main>
     );
   }
 
   return (
     <>
-      <Toaster 
+      <Toaster
         position="top-right"
         toastOptions={{
           style: {
-            background: theme === 'dark' ? '#0f172a' : '#ffffff',
-            color: theme === 'dark' ? '#f8fafc' : '#0f172a',
-            border: theme === 'dark' ? '1px solid #1e293b' : '1px solid #e2e8f0',
-            borderRadius: '16px',
-            fontSize: '13px'
+            background: 'var(--popover)',
+            color: 'var(--popover-foreground)',
+            border: '1px solid var(--border)',
+            borderRadius: '10px',
+            fontSize: '14px',
           },
-          success: {
-            iconTheme: {
-              primary: '#10b981',
-              secondary: theme === 'dark' ? '#0f172a' : '#ffffff',
-            },
-          },
-          error: {
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: theme === 'dark' ? '#0f172a' : '#ffffff',
-            },
-          },
+          success: { iconTheme: { primary: 'var(--success)', secondary: 'var(--popover)' } },
+          error: { iconTheme: { primary: 'var(--destructive)', secondary: 'var(--popover)' } },
         }}
       />
       <Router>
         <Routes>
-          {/* Public Login Route */}
-          <Route 
-            path="/" 
+          <Route
+            path="/"
             element={
               isAuthenticated ? (
                 <Navigate to="/dashboard" replace />
               ) : (
-                <Login 
-                  onLoginSuccess={() => refetchProfile()} 
-                  theme={theme} 
-                  toggleTheme={toggleTheme} 
-                />
+                <Login onLoginSuccess={() => refetchProfile()} theme={theme} toggleTheme={toggleTheme} />
               )
-            } 
+            }
           />
 
-          {/* Protected Dashboard Admin Routes */}
-          <Route 
+          <Route
             element={
-              <ProtectedRoute 
-                isAuthenticated={isAuthenticated} 
-                user={user} 
+              <ProtectedRoute
+                isAuthenticated={isAuthenticated}
+                user={user}
                 logout={logout}
                 theme={theme}
                 toggleTheme={toggleTheme}
@@ -131,7 +114,6 @@ function App() {
             <Route path="/maintenance" element={<MaintenanceManager />} />
           </Route>
 
-          {/* Fallback Catch-All */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

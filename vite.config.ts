@@ -1,6 +1,6 @@
-/// <reference types="vitest" />
+/// <reference types="vitest/config" />
 import path from "path"
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -13,12 +13,16 @@ export default defineConfig({
     },
   },
   test: {
-    globals: true,
     environment: 'jsdom',
+    setupFiles: ['./src/tests/setup.ts'],
+    include: ['src/tests/**/*.test.{ts,tsx}'],
+    css: false,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
-      reportsDirectory: './coverage',
+      reportOnFailure: true,
+      reporter: ['text', 'text-summary'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/tests/**', 'src/main.tsx', 'src/types/**'],
     },
   },
 })
